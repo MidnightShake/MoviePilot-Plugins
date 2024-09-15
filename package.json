@@ -3,7 +3,7 @@
         "name": "cookie伴侣",
         "description": "搭配浏览器插件导入MP本地储存的有效站点Cookie。",
         "labels": "站点",
-        "version": "1.1",
+        "version": "0.1",
         "icon": "Chrome_A.png",
         "author": "MidnightShake",
         "level": 1,
