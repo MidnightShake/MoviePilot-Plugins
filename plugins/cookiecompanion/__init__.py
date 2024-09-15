@@ -84,7 +84,7 @@ class CookieCompanion(_PluginBase):
                 self._scheduler = BackgroundScheduler(timezone=settings.TZ)
                 logger.info(f"cookie伴侣服务，立即运行一次")
                 self._scheduler.add_job(func=self.__cookiecompanion, trigger='date',
-                                        run_date=datetime.now(tz=pytz.timezone(settings.TZ)) + datetime.timedelta(seconds=3),
+                                        run_date=datetime.datetime.now(tz=pytz.timezone(settings.TZ)) + datetime.timedelta(seconds=3),
                                         name="cookie伴侣服务")
                 # 关闭一次性开关
                 self._onlyonce = False
