@@ -14,7 +14,7 @@ class GotifyMsg(_PluginBase):
     # 插件描述
     plugin_desc = "支持使用Gotify发送消息通知。"
     # 插件图标
-    plugin_icon = "Gotify.png"
+    plugin_icon = "Gotify_A.png"
     # 插件版本
     plugin_version = "2.0"
     # 插件作者
