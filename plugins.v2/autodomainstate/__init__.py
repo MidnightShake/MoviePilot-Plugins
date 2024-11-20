@@ -32,7 +32,7 @@ class AutoDomainState(_PluginBase):
     # 加载顺序
     plugin_order = 2
     # 可使用的用户级别
-    auth_level = 1
+    auth_level = 2
 
     # 事件管理器
     event: EventManager = None
