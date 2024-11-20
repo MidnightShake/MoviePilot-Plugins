@@ -1,1 +1,26 @@
-{}
+{
+    "GotifyMsg": {
+        "name": "Gotify消息通知",
+        "description": "支持使用Gotify发送消息通知。",
+        "labels": "消息通知",
+        "version": "2.0",
+        "icon": "Gotify_A.png",
+        "author": "MidnightShake",
+        "level": 1,
+        "history": {
+            "v2.0": "MoviePilot V2 版本 Gotify消息通知 插件"
+        }
+    },
+  "AutoDomainState": {
+        "name": "监测站点访问状态提醒",
+        "description": "监测站点访问状态，推送访问失败的站点消息。",
+        "labels": "站点,消息通知",
+        "version": "1.0",
+        "icon": "Chatgpt_A.png",
+        "author": "MidnightShake",
+        "level": 1,
+        "history": {
+            "v1.0": "支持MoviePilot V2 版本 监测站点访问状态提醒 插件"
+        }
+    }
+}
