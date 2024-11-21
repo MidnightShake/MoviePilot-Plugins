@@ -4,7 +4,7 @@
         "description": "支持使用Gotify发送消息通知。",
         "labels": "消息通知",
         "version": "2.0",
-        "icon": "Gotify_A.png",
+        "icon": "https://raw.githubusercontent.com/gotify/logo/master/gotify-logo.png",
         "author": "MidnightShake",
         "level": 1,
         "history": {
