@@ -20,7 +20,7 @@
         "author": "MidnightShake",
         "level": 1,
         "history": {
-            "v1.1": "优化减少日志"
+            "v1.1": "优化减少日志",
             "v1.0": "支持MoviePilot V2 版本 监测站点访问状态提醒 插件"
         }
     }
