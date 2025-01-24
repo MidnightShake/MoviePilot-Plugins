@@ -22,7 +22,7 @@ class AutoDomainState(_PluginBase):
     # 插件图标
     plugin_icon = "Chatgpt_A.png"
     # 插件版本
-    plugin_version = "1.0"
+    plugin_version = "1.1"
     # 插件作者
     plugin_author = "MidnightShake"
     # 作者主页
@@ -351,12 +351,13 @@ class AutoDomainState(_PluginBase):
                 if domian_state:
                     # logger.info(f"获取到的当前状态：{domian_state}")
                     self.__update_domain_state_list(domain=options["domain"], site_state_data=domian_state)
-        logger.info(f"这是最新的指定次数的记录：{self._domain_state_list}")
+        # logger.info(f"这是最新的指定次数的记录：{self._domain_state_list}")
         self.__update_config()
         # 检查站点失败总次数
         for domain in self._domain_state_list.keys():
             self.__check_state_failures(domain)
         if len(self._check_state_failures_domain) > 0:
+            logger.info(f"近期连续访问失败次数到达阀值的站点：{self._check_state_failures_domain}")
             if self._notify:
                 self.post_message(
                     mtype=NotificationType.Plugin,
