@@ -22,7 +22,7 @@ class AutoDomainState(_PluginBase):
     # 插件图标
     plugin_icon = "Chatgpt_A.png"
     # 插件版本
-    plugin_version = "1.1"
+    plugin_version = "1.2"
     # 插件作者
     plugin_author = "MidnightShake"
     # 作者主页
@@ -70,8 +70,8 @@ class AutoDomainState(_PluginBase):
             self._domain_state_list = config.get("domain_state_list") or {}
             self._check_state_failures_domain = config.get("check_state_failures_domain") or []
 
-            # 过滤掉已删除的站点
-            all_sites = [site.id for site in self.siteoper.list_order_by_pri()] + [site.get("id") for site in self.__custom_sites()]
+            # 过滤掉已删除的站点，排除未启用站点
+            all_sites = [site.id for site in self.siteoper.list_active()] + [site.get("id") for site in self.__custom_sites()]
             self._sign_sites = [site_id for site_id in all_sites if site_id in self._sign_sites]
 
             if self._clean:
@@ -128,11 +128,11 @@ class AutoDomainState(_PluginBase):
         """
         拼装插件配置页面，需要返回两块数据：1、页面配置；2、数据结构
         """
-        # 站点的可选项（内置站点 + 自定义站点）
+        # 站点的可选项（内置站点 + 自定义站点）(排除未启用站点)
         customSites = self.__custom_sites()
 
         site_options = ([{"title": site.name, "value": site.id}
-                         for site in self.siteoper.list_order_by_pri()]
+                         for site in self.siteoper.list_active()]
                         + [{"title": site.get("name"), "value": site.get("id")}
                            for site in customSites])
         return [
@@ -342,7 +342,7 @@ class AutoDomainState(_PluginBase):
         """
         customSites = self.__custom_sites()
         site_all_options = ([{"domain": site.domain, "id": site.id, "name":site.name}
-                         for site in self.siteoper.list_order_by_pri()]
+                         for site in self.siteoper.list_active()]
                         + [{"domain": site.get("domain"), "id": site.get("id"), "name": site.get("name")}
                            for site in customSites])
         for options in site_all_options:
