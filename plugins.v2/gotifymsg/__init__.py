@@ -16,7 +16,7 @@ class GotifyMsg(_PluginBase):
     # 插件图标
     plugin_icon = "https://raw.githubusercontent.com/gotify/logo/master/gotify-logo.png"
     # 插件版本
-    plugin_version = "2.0"
+    plugin_version = "2.1"
     # 插件作者
     plugin_author = "MidnightShake"
     # 作者主页
@@ -338,13 +338,13 @@ class GotifyMsg(_PluginBase):
             if res or res is not None:
                 if res.status_code == 200:
                     logger.info("Gotify消息发送成功")
-                if res.status_code == 400:
+                elif res.status_code == 400:
                     logger.warn(f"Gotify消息发送失败,错误码:{res.status_code},错误原因:{res.reason}, 返回信息:{res}: 发送的消息格式错误或不兼容!")
-                if res.status_code == 401:
+                elif res.status_code == 401:
                     logger.warn(f"Gotify消息发送失败,错误码:{res.status_code},错误原因:{res.reason}, 返回信息:{res}: 未经授权的错误-令牌无效!")
-                if res.status_code == 403:
+                elif res.status_code == 403:
                     logger.warn(f"Gotify消息发送失败,错误码:{res.status_code},错误原因:{res.reason}, 返回信息:{res}: 本插件端已被gotify服务器端禁止!")
-                if res.status_code == 404:
+                elif res.status_code == 404:
                     logger.warn(f"Gotify消息发送失败,错误码:{res.status_code},错误原因:{res.reason}, 返回信息:{res}: API URL未找到!")
                 else:
                     logger.warn(f"Gotify消息发送失败,错误码:{res.status_code},错误原因:{res.reason}, 返回信息:{res}: 发送的 消息标题:{title},消息内容:{text}")
