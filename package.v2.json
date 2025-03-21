@@ -3,11 +3,12 @@
         "name": "Gotify消息通知",
         "description": "支持使用Gotify发送消息通知。",
         "labels": "消息通知",
-        "version": "2.0",
+        "version": "2.1",
         "icon": "https://raw.githubusercontent.com/gotify/logo/master/gotify-logo.png",
         "author": "MidnightShake",
         "level": 1,
         "history": {
+            "v2.1": "修正 日志的错误内容",
             "v2.0": "MoviePilot V2 版本 Gotify消息通知 插件"
         }
     },
