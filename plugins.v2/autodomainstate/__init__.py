@@ -1,5 +1,6 @@
 from typing import Any, List, Dict, Tuple, Optional
 from pathlib import Path
+from datetime import datetime
 
 from app.core.event import EventManager, eventmanager, Event
 from app.helper.sites import SitesHelper
@@ -14,6 +15,8 @@ from app.db.models.sitestatistic import SiteStatistic
 from app.core.config import settings
 from app.db.site_oper import SiteOper
 
+from app.chain.site import SiteChain
+
 class AutoDomainState(_PluginBase):
     # 插件名称
     plugin_name = "监测站点访问状态提醒"
@@ -22,7 +25,7 @@ class AutoDomainState(_PluginBase):
     # 插件图标
     plugin_icon = "Chatgpt_A.png"
     # 插件版本
-    plugin_version = "1.2"
+    plugin_version = "1.3"
     # 插件作者
     plugin_author = "MidnightShake"
     # 作者主页
@@ -57,6 +60,7 @@ class AutoDomainState(_PluginBase):
         self.event = EventManager()
         self.db_oper = DbOper()
         self._scheduler = BackgroundScheduler(timezone=settings.TZ)
+        self.sitechain = SiteChain()
 
         if config:
             self._enabled = config.get("enabled")
@@ -297,7 +301,23 @@ class AutoDomainState(_PluginBase):
                                         'props': {
                                             'type': 'info',
                                             'variant': 'tonal',
-                                            'text': '插件每次运行都会检测选定站点的最后一次访问状态，并且迭代暂存最新检测结果。插件会根据每各个站点暂存的数据综合判断：如果选定站点 访问的失败次数 超过或等于设定的阀值,则会发出指定通知提醒。'
+                                            'text': '插件每次运行都会测试选定站点的连接性状态，并且迭代暂存最新检测结果。插件会根据每各个站点暂存的数据综合判断：如果选定站点 记录的访问失败总次数 超过或等于设定的阀值,则会发出指定通知提醒。'
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VAlert',
+                                        'props': {
+                                            'type': 'info',
+                                            'variant': 'tonal',
+                                            'text': '如果启用立即运行一次，会全量测试所选站点的连接性状态，需要点时间，测试完成后插件会自动加载成功，日志可查看检测结果。'
                                         }
                                     }
                                 ]
@@ -372,6 +392,8 @@ class AutoDomainState(_PluginBase):
                     title=f"【监测站点访问状态插件提醒】",
                     userid=event.event_data.get("userid")
                     )
+        else:
+            logger.info(f"未检测到 近期连续访问失败次数到达阀值的站点")
 
     def __update_domain_state_list(self, domain, site_state_data):
         """
@@ -406,15 +428,28 @@ class AutoDomainState(_PluginBase):
         """
         获取站点访问状态
         """
-        site_statistic = SiteStatistic.get_by_domain(self.db_oper._db, domain)
-        if site_statistic:
+        test_state, test_message =  self.sitechain.test(domain)
+        logger.info(f"当前测试站点连接性结果 {domain}：{test_state} , {test_message}")
+        lst_mod_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        if test_state:
+            lst_state = 0
+        else:
+            lst_state = 1
+        if test_message:
+            lst_test_message = f"{test_message}"
+        else:
+            lst_test_message = f"没有返回信息"
+        if test_state:
             domian_state = {
                 # 站点
                 "domain": domain,
-                # 最后一次访问状态 0-成功 1-失败
-                "lst_state": site_statistic.lst_state,
-                # 最后访问时间
-                "lst_mod_date": site_statistic.lst_mod_date
+                # 最后测试访问状态 0-成功 1-失败
+                "lst_state": lst_state,
+                # 最后测试访问时间
+                "lst_mod_date": lst_mod_date,
+                # 最后测试访问返回的信息
+                "lst_test_message": lst_test_message
             }
             return domian_state
         else:
@@ -450,7 +485,6 @@ class AutoDomainState(_PluginBase):
         config = self.get_config()
         if config:
             self._sign_sites = self.__remove_site_id(config.get("sign_sites") or [], site_id)
-            # self._login_sites = self.__remove_site_id(config.get("login_sites") or [], site_id)
             # 保存配置
             self.__update_config()
 
