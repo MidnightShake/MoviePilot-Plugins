@@ -429,17 +429,17 @@ class AutoDomainState(_PluginBase):
         获取站点访问状态
         """
         test_state, test_message =  self.sitechain.test(domain)
-        logger.info(f"当前测试站点连接性结果 {domain}：{test_state} , {test_message}")
         lst_mod_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        if test_state:
-            lst_state = 0
-        else:
-            lst_state = 1
         if test_message:
             lst_test_message = f"{test_message}"
         else:
             lst_test_message = f"没有返回信息"
+        if test_state:
+            lst_state = 0
+        else:
+            lst_state = 1
+            logger.info(f"当前测试站点连接性结果 {domain}：{lst_state} , {lst_test_message}")
         if test_state:
             domian_state = {
                 # 站点
