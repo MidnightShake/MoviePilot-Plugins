@@ -25,7 +25,7 @@ class AutoDomainState(_PluginBase):
     # 插件图标
     plugin_icon = "Chatgpt_A.png"
     # 插件版本
-    plugin_version = "1.3"
+    plugin_version = "1.4"
     # 插件作者
     plugin_author = "MidnightShake"
     # 作者主页
@@ -368,8 +368,8 @@ class AutoDomainState(_PluginBase):
         for options in site_all_options:
             if options["id"] in self._sign_sites:
                 domian_state = self.__GetStateAndSendMassage(domain = options["domain"])
+                # logger.info(f"获取到的当前状态：{domian_state}")
                 if domian_state:
-                    # logger.info(f"获取到的当前状态：{domian_state}")
                     self.__update_domain_state_list(domain=options["domain"], site_state_data=domian_state)
         # logger.info(f"这是最新的指定次数的记录：{self._domain_state_list}")
         self.__update_config()
@@ -437,10 +437,10 @@ class AutoDomainState(_PluginBase):
             lst_test_message = f"没有返回信息"
         if test_state:
             lst_state = 0
+            return None
         else:
             lst_state = 1
             logger.info(f"当前测试站点连接性结果 {domain}：{lst_state} , {lst_test_message}")
-        if test_state:
             domian_state = {
                 # 站点
                 "domain": domain,
@@ -452,8 +452,6 @@ class AutoDomainState(_PluginBase):
                 "lst_test_message": lst_test_message
             }
             return domian_state
-        else:
-            return None
 
     def __custom_sites(self) -> List[Any]:
         custom_sites = []
