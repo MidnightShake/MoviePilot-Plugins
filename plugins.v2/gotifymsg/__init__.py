@@ -8,21 +8,21 @@ from app.schemas.types import EventType, NotificationType
 from app.utils.http import RequestUtils
 
 
-class GotifyMsg(_PluginBase):
+class GotifyMsgPush(_PluginBase):
     # 插件名称
-    plugin_name = "Gotify消息通知"
+    plugin_name = "Gotify消息推送"
     # 插件描述
-    plugin_desc = "支持使用Gotify发送消息通知。"
+    plugin_desc = "支持使用Gotify推送消息通知。"
     # 插件图标
     plugin_icon = "https://raw.githubusercontent.com/gotify/logo/master/gotify-logo.png"
     # 插件版本
-    plugin_version = "2.1"
+    plugin_version = "2.2"
     # 插件作者
     plugin_author = "MidnightShake"
     # 作者主页
     author_url = "https://github.com/MidnightShake"
     # 插件配置项ID前缀
-    plugin_config_prefix = "gotifymsg_"
+    plugin_config_prefix = "gotifymsgpush_"
     # 加载顺序
     plugin_order = 1
     # 可使用的用户级别
@@ -51,14 +51,14 @@ class GotifyMsg(_PluginBase):
             self._diy_message = config.get("diy_message")
 
             if self._onlyonce:
-                logger.info(f"Gotify消息通知服务启动,立即向服务器发送一次 自定义消息")
+                logger.info(f"Gotify消息推送服务启动,立即向服务器发送一次 自定义消息")
                 if not self._diy_title and self._diy_message:
-                    self._diy_title = '来MP的Gotify消息通知 <测试标题>'
+                    self._diy_title = '来MP的Gotify消息推送 <测试标题>'
                 elif self._diy_title and not self._diy_message:
-                    self._diy_message = '来MP的Gotify消息通知 <测试内容>'
+                    self._diy_message = '来MP的Gotify消息推送 <测试内容>'
                 elif not self._diy_title and not self._diy_message:
-                    self._diy_title = '来MP的Gotify消息通知 <测试标题>'
-                    self._diy_message = '来MP的Gotify消息通知 <测试内容>'
+                    self._diy_title = '来MP的Gotify消息推送 <测试标题>'
+                    self._diy_message = '来MP的Gotify消息推送 <测试内容>'
                 self.send(Event)
                 # 关闭一次性开关
                 self._onlyonce = False
@@ -287,7 +287,7 @@ class GotifyMsg(_PluginBase):
         消息发送事件
         """
         if self._diy_title and self._diy_message:
-            logger.info(f"Gotify消息通知服务检测到一次 测试消息待发送...")
+            logger.info(f"Gotify消息推送服务检测到一次 测试消息待发送...")
             # 标题
             title = self._diy_title
             # 文本
@@ -318,7 +318,7 @@ class GotifyMsg(_PluginBase):
 
             if (msg_type and self._msgtypes
                     and msg_type.name not in self._msgtypes):
-                logger.info(f"消息类型 {msg_type.value} 在Gotify消息插件中 未开启消息发送")
+                logger.info(f"消息类型 {msg_type.value} 在Gotify推送插件中 未开启")
                 return
 
         try:
@@ -326,7 +326,7 @@ class GotifyMsg(_PluginBase):
                 logger.warn("标题和内容不能为空")
                 return
             if not self._server or not self._apikey or not self._priority:
-                logger.info("Gotify消息 参数未配置")
+                logger.info("Gotify消息推送 参数未配置")
                 return False, "参数未配置"
             sc_url = "%s/%s" % (self._server, 'message?token=' + self._apikey)
             data = {
