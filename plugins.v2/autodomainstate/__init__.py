@@ -25,7 +25,7 @@ class AutoDomainState(_PluginBase):
     # 插件图标
     plugin_icon = "Chatgpt_A.png"
     # 插件版本
-    plugin_version = "1.4"
+    plugin_version = "1.5"
     # 插件作者
     plugin_author = "MidnightShake"
     # 作者主页
@@ -120,6 +120,145 @@ class AutoDomainState(_PluginBase):
 
     def get_state(self) -> bool:
         return self._enabled
+
+    def __update_config(self):
+        self.update_config({
+            "enabled": self._enabled,
+            "onlyonce": self._onlyonce,
+            "notify_sys": self._notify_sys,
+            "notify": self._notify,
+            "clean": self._clean,
+            "cron": self._cron,
+            "sign_sites": self._sign_sites,
+            "domain_state_list": self._domain_state_list,
+            "failed_threshold": self._failed_threshold
+        })
+
+    def __runOnlyonce(self, event: Event = None):
+        """
+        构建 站点访问状态 的结果数据
+        """
+        customSites = self.__custom_sites()
+        site_all_options = ([{"domain": site.domain, "id": site.id, "name":site.name}
+                         for site in self.siteoper.list_active()]
+                        + [{"domain": site.get("domain"), "id": site.get("id"), "name": site.get("name")}
+                           for site in customSites])
+        for options in site_all_options:
+            if options["id"] in self._sign_sites:
+                domian_state = self.__GetStateAndSendMassage(domain = options["domain"])
+                # logger.info(f"获取到的当前状态：{domian_state}")
+                if domian_state:
+                    self.__update_domain_state_list(domain=options["domain"], site_state_data=domian_state)
+        # logger.info(f"这是最新的指定次数的记录：{self._domain_state_list}")
+        self.__update_config()
+        # 检查站点失败总次数
+        for domain in self._domain_state_list.keys():
+            self.__check_state_failures(domain)
+        if len(self._check_state_failures_domain) > 0:
+            _check_state_failures_name = []
+            for options in site_all_options:
+                if options["domain"] in self._check_state_failures_domain:
+                    _check_state_failures_name.append(options["name"])
+            logger.info(f"近期连续访问失败次数到达阀值的 站点：{_check_state_failures_name} 对应域名：{self._check_state_failures_domain}")
+            if self._notify:
+                self.post_message(
+                    mtype=NotificationType.Plugin,
+                    title=f"【监测站点访问状态插件提醒】",
+                    text=f"近期连续访问失败次数到达阀值的 站点：{_check_state_failures_name} 对应域名：{self._check_state_failures_domain}"
+                    )
+            if self._notify_sys:
+                self.systemmessage.put(f"近期连续访问失败次数到达阀值的 站点：{_check_state_failures_name} 对应域名：{self._check_state_failures_domain}")
+            if event:
+                self.post_message(
+                    channel=event.event_data.get("channel"),
+                    title=f"【监测站点访问状态插件提醒】",
+                    userid=event.event_data.get("userid")
+                    )
+        else:
+            logger.info(f"未检测到 近期连续访问失败次数到达阀值的站点")
+
+    def __update_domain_state_list(self, domain, site_state_data):
+        """
+        保留最新的指定次数的记录
+        """
+        if domain not in self._domain_state_list:
+            self._domain_state_list[domain] = []
+        self._domain_state_list[domain].append(site_state_data)
+        # 指定次数
+        if self._failed_threshold:
+            max_records = int(self._failed_threshold)
+        else:
+            max_records = 5
+        if len(self._domain_state_list[domain]) > max_records:
+            self._domain_state_list[domain] = self._domain_state_list[domain][-max_records:]
+
+    def __check_state_failures(self, domain):
+        """
+        单站访问失败次数阀值
+        """
+        if domain in self._domain_state_list:
+            total_failures = sum(1 for state in self._domain_state_list[domain] if state["lst_state"] == 1)
+            if self._failed_threshold:
+                failed_threshold = self._failed_threshold
+            else:
+                failed_threshold = 5
+            if total_failures >= int(failed_threshold) and domain not in self._check_state_failures_domain:
+                self._check_state_failures_domain.append(domain)
+
+
+    def __GetStateAndSendMassage(self, domain: str):
+        """
+        获取站点访问状态
+        """
+        test_state, test_message =  self.sitechain.test(domain)
+        lst_mod_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        if test_message:
+            lst_test_message = f"{test_message}"
+        else:
+            lst_test_message = f"没有返回信息"
+        if test_state:
+            lst_state = 0
+            return None
+        else:
+            lst_state = 1
+            logger.info(f"当前测试站点连接性结果 {domain}：{lst_state} , {lst_test_message}")
+            domian_state = {
+                # 站点
+                "domain": domain,
+                # 最后测试访问状态 0-成功 1-失败
+                "lst_state": lst_state,
+                # 最后测试访问时间
+                "lst_mod_date": lst_mod_date,
+                # 最后测试访问返回的信息
+                "lst_test_message": lst_test_message
+            }
+            return domian_state
+
+    def __custom_sites(self) -> List[Any]:
+        custom_sites = []
+        custom_sites_config = self.get_config("CustomSites")
+        if custom_sites_config and custom_sites_config.get("enabled"):
+            custom_sites = custom_sites_config.get("sites")
+        return custom_sites
+
+    def __remove_site_id(self, do_sites, site_id):
+        if do_sites:
+            if isinstance(do_sites, str):
+                do_sites = [do_sites]
+
+            # 删除对应站点
+            if site_id:
+                do_sites = [site for site in do_sites if int(site) != int(site_id)]
+            else:
+                # 清空
+                do_sites = []
+
+            # 若无站点，则停止
+            if len(do_sites) == 0:
+                self._enabled = False
+
+        return do_sites
 
     @staticmethod
     def get_command() -> List[Dict[str, Any]]:
@@ -337,128 +476,23 @@ class AutoDomainState(_PluginBase):
             "sign_sites": []
         }
 
+    @eventmanager.register(EventType.SiteDeleted)
+    def site_deleted(self, event):
+        """
+        删除对应站点选中
+        """
+        site_id = event.event_data.get("site_id")
+        config = self.get_config()
+        if config:
+            self._sign_sites = self.__remove_site_id(config.get("sign_sites") or [], site_id)
+            # 保存配置
+            self.__update_config()
+
     def get_page(self) -> List[dict]:
         """
         拼装插件详情页面，需要返回页面配置，同时附带数据
         """
         pass
-
-    def __update_config(self):
-        self.update_config({
-            "enabled": self._enabled,
-            "onlyonce": self._onlyonce,
-            "notify_sys": self._notify_sys,
-            "notify": self._notify,
-            "clean": self._clean,
-            "cron": self._cron,
-            "sign_sites": self._sign_sites,
-            "domain_state_list": self._domain_state_list,
-            "failed_threshold": self._failed_threshold
-        })
-
-    def __runOnlyonce(self, event: Event = None):
-        """
-        构建 站点访问状态 的结果数据
-        """
-        customSites = self.__custom_sites()
-        site_all_options = ([{"domain": site.domain, "id": site.id, "name":site.name}
-                         for site in self.siteoper.list_active()]
-                        + [{"domain": site.get("domain"), "id": site.get("id"), "name": site.get("name")}
-                           for site in customSites])
-        for options in site_all_options:
-            if options["id"] in self._sign_sites:
-                domian_state = self.__GetStateAndSendMassage(domain = options["domain"])
-                # logger.info(f"获取到的当前状态：{domian_state}")
-                if domian_state:
-                    self.__update_domain_state_list(domain=options["domain"], site_state_data=domian_state)
-        # logger.info(f"这是最新的指定次数的记录：{self._domain_state_list}")
-        self.__update_config()
-        # 检查站点失败总次数
-        for domain in self._domain_state_list.keys():
-            self.__check_state_failures(domain)
-        if len(self._check_state_failures_domain) > 0:
-            logger.info(f"近期连续访问失败次数到达阀值的站点：{self._check_state_failures_domain}")
-            if self._notify:
-                self.post_message(
-                    mtype=NotificationType.Plugin,
-                    title=f"【监测站点访问状态插件提醒】",
-                    text=f"近期连续访问失败次数到达阀值的站点：{self._check_state_failures_domain}"
-                    )
-            if self._notify_sys:
-                self.systemmessage.put(f"近期连续访问失败次数到达阀值的站点：{self._check_state_failures_domain}")
-            if event:
-                self.post_message(
-                    channel=event.event_data.get("channel"),
-                    title=f"【监测站点访问状态插件提醒】",
-                    userid=event.event_data.get("userid")
-                    )
-        else:
-            logger.info(f"未检测到 近期连续访问失败次数到达阀值的站点")
-
-    def __update_domain_state_list(self, domain, site_state_data):
-        """
-        保留最新的指定次数的记录
-        """
-        if domain not in self._domain_state_list:
-            self._domain_state_list[domain] = []
-        self._domain_state_list[domain].append(site_state_data)
-        # 指定次数
-        if self._failed_threshold:
-            max_records = int(self._failed_threshold)
-        else:
-            max_records = 5
-        if len(self._domain_state_list[domain]) > max_records:
-            self._domain_state_list[domain] = self._domain_state_list[domain][-max_records:]
-
-    def __check_state_failures(self, domain):
-        """
-        单站访问失败次数阀值
-        """
-        if domain in self._domain_state_list:
-            total_failures = sum(1 for state in self._domain_state_list[domain] if state["lst_state"] == 1)
-            if self._failed_threshold:
-                failed_threshold = self._failed_threshold
-            else:
-                failed_threshold = 5
-            if total_failures >= int(failed_threshold) and domain not in self._check_state_failures_domain:
-                self._check_state_failures_domain.append(domain)
-
-
-    def __GetStateAndSendMassage(self, domain: str):
-        """
-        获取站点访问状态
-        """
-        test_state, test_message =  self.sitechain.test(domain)
-        lst_mod_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        if test_message:
-            lst_test_message = f"{test_message}"
-        else:
-            lst_test_message = f"没有返回信息"
-        if test_state:
-            lst_state = 0
-            return None
-        else:
-            lst_state = 1
-            logger.info(f"当前测试站点连接性结果 {domain}：{lst_state} , {lst_test_message}")
-            domian_state = {
-                # 站点
-                "domain": domain,
-                # 最后测试访问状态 0-成功 1-失败
-                "lst_state": lst_state,
-                # 最后测试访问时间
-                "lst_mod_date": lst_mod_date,
-                # 最后测试访问返回的信息
-                "lst_test_message": lst_test_message
-            }
-            return domian_state
-
-    def __custom_sites(self) -> List[Any]:
-        custom_sites = []
-        custom_sites_config = self.get_config("CustomSites")
-        if custom_sites_config and custom_sites_config.get("enabled"):
-            custom_sites = custom_sites_config.get("sites")
-        return custom_sites
 
     def stop_service(self):
         """
@@ -473,33 +507,3 @@ class AutoDomainState(_PluginBase):
                 self._scheduler = None
         except Exception as e:
             logger.error("退出插件失败：%s" % str(e))
-
-    @eventmanager.register(EventType.SiteDeleted)
-    def site_deleted(self, event):
-        """
-        删除对应站点选中
-        """
-        site_id = event.event_data.get("site_id")
-        config = self.get_config()
-        if config:
-            self._sign_sites = self.__remove_site_id(config.get("sign_sites") or [], site_id)
-            # 保存配置
-            self.__update_config()
-
-    def __remove_site_id(self, do_sites, site_id):
-        if do_sites:
-            if isinstance(do_sites, str):
-                do_sites = [do_sites]
-
-            # 删除对应站点
-            if site_id:
-                do_sites = [site for site in do_sites if int(site) != int(site_id)]
-            else:
-                # 清空
-                do_sites = []
-
-            # 若无站点，则停止
-            if len(do_sites) == 0:
-                self._enabled = False
-
-        return do_sites
