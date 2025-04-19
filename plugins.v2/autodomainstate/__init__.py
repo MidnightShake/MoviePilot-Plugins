@@ -1,6 +1,9 @@
 from typing import Any, List, Dict, Tuple, Optional
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
+import concurrent.futures
+from collections import defaultdict
+import pytz
 
 from app.core.event import EventManager, eventmanager, Event
 from app.helper.sites import SitesHelper
@@ -11,7 +14,6 @@ from app.plugins import _PluginBase
 from app.schemas.types import EventType, NotificationType
 
 from app.db import DbOper
-from app.db.models.sitestatistic import SiteStatistic
 from app.core.config import settings
 from app.db.site_oper import SiteOper
 
@@ -25,7 +27,7 @@ class AutoDomainState(_PluginBase):
     # 插件图标
     plugin_icon = "Chatgpt_A.png"
     # 插件版本
-    plugin_version = "1.5"
+    plugin_version = "1.6"
     # 插件作者
     plugin_author = "MidnightShake"
     # 作者主页
@@ -72,7 +74,6 @@ class AutoDomainState(_PluginBase):
             self._failed_threshold = config.get("failed_threshold")
             self._sign_sites = config.get("sign_sites")
             self._domain_state_list = config.get("domain_state_list") or {}
-            self._check_state_failures_domain = config.get("check_state_failures_domain") or []
 
             # 过滤掉已删除的站点，排除未启用站点
             all_sites = [site.id for site in self.siteoper.list_active()] + [site.get("id") for site in self.__custom_sites()]
@@ -92,8 +93,10 @@ class AutoDomainState(_PluginBase):
 
             if self._enabled or self._onlyonce:
                 if self._onlyonce:
-                    self.__runOnlyonce()
-                    # self.__GetStateAndSendMassage()
+                    logger.info(f"监测站点访问状态提醒 服务启动，立即运行一次")
+                    self._scheduler.add_job(self.__runOnlyonce, 'date',
+                                            run_date=datetime.now(tz=pytz.timezone(settings.TZ)) + timedelta(seconds=3),
+                                            name="立即运行一次 监测站点访问状态提醒")
                     self._onlyonce = False
                     self.__update_config()
                 # 周期运行
@@ -143,31 +146,49 @@ class AutoDomainState(_PluginBase):
                          for site in self.siteoper.list_active()]
                         + [{"domain": site.get("domain"), "id": site.get("id"), "name": site.get("name")}
                            for site in customSites])
+        _sign_sites_domain = []
+        # 定义任务参数列表
+        task_args = []
         for options in site_all_options:
             if options["id"] in self._sign_sites:
-                domian_state = self.__GetStateAndSendMassage(domain = options["domain"])
-                # logger.info(f"获取到的当前状态：{domian_state}")
+                task_args.append(options["domain"])
+        # 执行任务并获取结果集合
+        all_results = self._run_concurrent_tasks(
+            task_func=self.__GetStateAndSendMassage,
+            task_args_list=task_args,
+            max_workers=20,
+            timeout=20
+        )
+        # 解析结果
+        for item in all_results:
+            if item["error"]:
+                logger.info(f"Failed: {item['arg']} -> {item['error']}")
+            else:
+                # logger.info(f"Success: {item['arg']} -> {item['result']}")
+                domian_state, lst_state = item['result']
                 if domian_state:
-                    self.__update_domain_state_list(domain=options["domain"], site_state_data=domian_state)
-        # logger.info(f"这是最新的指定次数的记录：{self._domain_state_list}")
+                    self.__update_domain_state_list(domain=item['arg'], site_state_data=domian_state)
         self.__update_config()
         # 检查站点失败总次数
+        _check_state_failures_domain = []
+        _sign_sites_domain = task_args
         for domain in self._domain_state_list.keys():
-            self.__check_state_failures(domain)
-        if len(self._check_state_failures_domain) > 0:
+            _check_state_failures_domain = self.__check_state_failures(domain, _check_state_failures_domain, _sign_sites_domain)
+        # logger.info(f"记录中的失败状态次数达到阀值站点域名列表：{_check_state_failures_domain}")
+        if len(_check_state_failures_domain) > 0:
             _check_state_failures_name = []
             for options in site_all_options:
-                if options["domain"] in self._check_state_failures_domain:
+                if options["domain"] in _check_state_failures_domain:
                     _check_state_failures_name.append(options["name"])
-            logger.info(f"近期连续访问失败次数到达阀值的 站点：{_check_state_failures_name} 对应域名：{self._check_state_failures_domain}")
+            logger.info(f"近期连续访问失败次数到达阀值的 站点：{_check_state_failures_name} 对应域名：{_check_state_failures_domain}")
             if self._notify:
                 self.post_message(
                     mtype=NotificationType.Plugin,
                     title=f"【监测站点访问状态插件提醒】",
-                    text=f"近期连续访问失败次数到达阀值的 站点：{_check_state_failures_name} 对应域名：{self._check_state_failures_domain}"
+                    text=f"近期连续访问失败次数到达阀值的 站点：{_check_state_failures_name} 对应域名：{_check_state_failures_domain}"
                     )
             if self._notify_sys:
-                self.systemmessage.put(f"近期连续访问失败次数到达阀值的 站点：{_check_state_failures_name} 对应域名：{self._check_state_failures_domain}")
+                self.systemmessage.put(f"近期连续访问失败次数到达阀值的 站点：{_check_state_failures_name} 对应域名：{_check_state_failures_domain}")
             if event:
                 self.post_message(
                     channel=event.event_data.get("channel"),
@@ -185,26 +206,20 @@ class AutoDomainState(_PluginBase):
             self._domain_state_list[domain] = []
         self._domain_state_list[domain].append(site_state_data)
         # 指定次数
-        if self._failed_threshold:
-            max_records = int(self._failed_threshold)
-        else:
-            max_records = 5
+        max_records = max(1, int(self._failed_threshold)) if self._failed_threshold else 5
         if len(self._domain_state_list[domain]) > max_records:
             self._domain_state_list[domain] = self._domain_state_list[domain][-max_records:]
 
-    def __check_state_failures(self, domain):
+    def __check_state_failures(self, domain, _check_state_failures_domain, _sign_sites_domain):
         """
         单站访问失败次数阀值
         """
         if domain in self._domain_state_list:
             total_failures = sum(1 for state in self._domain_state_list[domain] if state["lst_state"] == 1)
-            if self._failed_threshold:
-                failed_threshold = self._failed_threshold
-            else:
-                failed_threshold = 5
-            if total_failures >= int(failed_threshold) and domain not in self._check_state_failures_domain:
-                self._check_state_failures_domain.append(domain)
-
+            failed_threshold = max(1, int(self._failed_threshold)) if self._failed_threshold else 5
+            if total_failures >= int(failed_threshold) and domain not in _check_state_failures_domain and domain in _sign_sites_domain:
+                _check_state_failures_domain.append(domain)
+        return _check_state_failures_domain
 
     def __GetStateAndSendMassage(self, domain: str):
         """
@@ -219,7 +234,17 @@ class AutoDomainState(_PluginBase):
             lst_test_message = f"没有返回信息"
         if test_state:
             lst_state = 0
-            return None
+            domian_state = {
+                # 站点
+                "domain": domain,
+                # 最后测试访问状态 0-成功 1-失败
+                "lst_state": lst_state,
+                # 最后测试访问时间
+                "lst_mod_date": lst_mod_date,
+                # 最后测试访问返回的信息
+                "lst_test_message": lst_test_message
+            }
+            return domian_state, lst_state
         else:
             lst_state = 1
             logger.info(f"当前测试站点连接性结果 {domain}：{lst_state} , {lst_test_message}")
@@ -233,7 +258,7 @@ class AutoDomainState(_PluginBase):
                 # 最后测试访问返回的信息
                 "lst_test_message": lst_test_message
             }
-            return domian_state
+            return domian_state, lst_state
 
     def __custom_sites(self) -> List[Any]:
         custom_sites = []
@@ -259,6 +284,32 @@ class AutoDomainState(_PluginBase):
                 self._enabled = False
 
         return do_sites
+
+    def _run_concurrent_tasks(self, task_func, task_args_list: List[Any], max_workers: int = 50, timeout: int = 20) -> List[Dict]:
+        """
+        通用多线程任务执行函数（返回按任务参数顺序排列的结果列表）
+        :param task_func: 需要并行执行的任务函数
+        :param task_args_list: 任务参数列表（每个元素对应任务函数的一个参数）
+        :param max_workers: 最大线程数（默认50）
+        :return: 包含所有任务结果的列表，格式为 [{"arg": arg, "result": data, "error": None}, ...]
+        """
+        results = [None] * len(task_args_list)  # 初始化占位列表
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 提交任务并记录索引
+            future_to_index = {
+                executor.submit(task_func, arg): idx
+                for idx, arg in enumerate(task_args_list)
+            }
+            # 处理结果
+            for future in concurrent.futures.as_completed(future_to_index):
+                idx = future_to_index[future]
+                arg = task_args_list[idx]
+                try:
+                    result = future.result(timeout=timeout)
+                    results[idx] = {"arg": arg, "result": result, "error": None}
+                except Exception as e:
+                    results[idx] = {"arg": arg, "result": None, "error": str(e)}
+        return results
 
     @staticmethod
     def get_command() -> List[Dict[str, Any]]:
@@ -456,7 +507,7 @@ class AutoDomainState(_PluginBase):
                                         'props': {
                                             'type': 'info',
                                             'variant': 'tonal',
-                                            'text': '如果启用立即运行一次，会全量测试所选站点的连接性状态，需要点时间，测试完成后插件会自动加载成功，日志可查看检测结果。'
+                                            'text': '如果启用立即运行一次，会全量测试所选站点的连接性状态，需要点时间，日志刷新可查看检测结果。'
                                         }
                                     }
                                 ]
