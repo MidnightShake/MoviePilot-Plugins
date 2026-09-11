@@ -17,14 +17,14 @@
         "name": "监测站点访问状态提醒",
         "description": "监测站点访问状态，推送访问失败的站点消息。",
         "labels": "站点,消息通知",
-        "version": "3.0",
+        "version": "2.0",
         "icon": "Chatgpt_A.png",
         "author": "MidnightShake",
         "level": 1,
         "release": true,
         "system_version": ">=3.0.0",
         "history": {
-            "v3.0": "迁移至v3，使用SDK加载模块"
+            "v2.0": "迁移至v3，使用SDK加载模块"
         }
     }
 }
