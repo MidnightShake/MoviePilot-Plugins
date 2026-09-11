@@ -20,7 +20,7 @@
         "name": "监测站点访问状态提醒",
         "description": "监测站点访问状态，推送访问失败的站点消息。",
         "labels": "站点,消息通知",
-        "version": "1.6",
+        "version": "3.0",
         "icon": "Chatgpt_A.png",
         "author": "MidnightShake",
         "level": 1,
