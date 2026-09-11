@@ -7,8 +7,6 @@
         "icon": "https://raw.githubusercontent.com/gotify/logo/master/gotify-logo.png",
         "author": "MidnightShake",
         "level": 1,
-        "v2": true,
-        "v3": true,
         "history": {
             "v2.2": "修正 冲突",
             "v2.1": "修正 日志的错误内容",
@@ -23,8 +21,6 @@
         "icon": "Chatgpt_A.png",
         "author": "MidnightShake",
         "level": 1,
-        "v2": true,
-        "v3": true,
         "history": {
             "v1.6": "修复可能的错误，优化运行速度",
             "v1.5": "增加显示  站点别名",
