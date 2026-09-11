@@ -39,9 +39,6 @@ class AutoDomainState(_PluginBase):
     # 可使用的用户级别
     auth_level = 2
 
-    # 事件管理器
-    event: EventManager = None
-
     # 私有属性
     _enabled = False
     _onlyonce = False
